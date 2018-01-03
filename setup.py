@@ -44,7 +44,7 @@ setup(
             extra_compile_args=[
                 '-Wall',
                 '-Wextra',
-                '-Wno-missing-initializers',
+                '-Wno-missing-field-initializers',
             ]
         ),
     ],

@@ -12,8 +12,8 @@ static PyObject* unset_value_repr(PyObject* UNUSED(self)) {
 }
 
 static void unset_value_dealloc(PyObject* UNUSED(self)) {
-    /* This should never get called, but we also don't want to SEGV if
-       we accidentally decref RecursionGuard out of existence. */
+    /* this should never get called, but we also don't want to SEGV if
+       we accidentally decref unset_value out of existence */
     Py_FatalError("deallocating unset_value");
 }
 
@@ -108,29 +108,10 @@ try_block_new(PyTypeObject* UNUSED(cls), PyObject* args, PyObject* kwargs) {
 }
 
 static PyObject* try_block_getnewargs(try_block_object* self) {
-    PyObject* ret = PyTuple_New(3);
-    PyObject* tmp;
-
-    if (!(tmp = PyLong_FromLong(self->tb_block.b_type))) {
-        goto error;
-    }
-    PyTuple_SET_ITEM(ret, 0, tmp);
-
-    if (!(tmp = PyLong_FromLong(self->tb_block.b_handler))) {
-        goto error;
-    }
-    PyTuple_SET_ITEM(ret, 1, tmp);
-
-    if (!(tmp = PyLong_FromLong(self->tb_block.b_level))) {
-        goto error;
-    }
-    PyTuple_SET_ITEM(ret, 2, tmp);
-
-    return ret;
-
-error:
-    Py_DECREF(tmp);
-    return NULL;
+    return Py_BuildValue("iii",
+                         self->tb_block.b_type,
+                         self->tb_block.b_handler,
+                         self->tb_block.b_level);
 }
 
 PyMethodDef try_block_methods[] = {
@@ -291,6 +272,7 @@ restore_frame(PyObject* UNUSED(self), PyObject* args, PyObject* kwargs) {
         return NULL;
     }
 
+    /* set the lasti to move the generator's instruction pointer */
     frame->f_lasti = lasti;
 
     /* restore the local variable state */
@@ -319,7 +301,17 @@ restore_frame(PyObject* UNUSED(self), PyObject* args, PyObject* kwargs) {
                            block->tb_block.b_level);
     }
 
+    /* exc_info is either a tuple of (type, value, traceback) or None which
+       indicates that no exception is being held */
     if (PyTuple_CheckExact(exc_info)) {
+        if (PyTuple_Size(exc_info) != 3) {
+            PyErr_Format(PyExc_ValueError,
+                         "exc_info must either be None or a 3-tuple,"
+                         " got tuple of length: %ld",
+                         PyTuple_Size(exc_info));
+            return NULL;
+        }
+
         frame->f_exc_type = PyTuple_GET_ITEM(exc_info, 0);
         Py_INCREF(frame->f_exc_type);
 
@@ -328,6 +320,12 @@ restore_frame(PyObject* UNUSED(self), PyObject* args, PyObject* kwargs) {
 
         frame->f_exc_traceback = PyTuple_GET_ITEM(exc_info, 0);
         Py_INCREF(frame->f_exc_traceback);
+    }
+    else if (exc_info != Py_None) {
+        PyErr_Format(PyExc_ValueError,
+                     "exc_info must either be None or a 3-tuple,  got %R",
+                     exc_info);
+        return NULL;
     }
 
     Py_RETURN_NONE;
