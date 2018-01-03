@@ -7,8 +7,6 @@
 #define UNUSED(name) name
 #endif
 
-
-
 static PyObject* unset_value_repr(PyObject* UNUSED(self)) {
     return PyUnicode_FromString("unset_value");
 }
