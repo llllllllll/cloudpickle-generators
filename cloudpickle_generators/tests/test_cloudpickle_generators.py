@@ -14,7 +14,12 @@ def roundtrip(ob):
 
 def assert_tail_matches(old, new):
     sentinel = object()
-    old_tail, new_tail = zip(*zip_longest(old, new, fillvalue=sentinel))
+    old_tail = []
+    new_tail = []
+    for old_value, new_value in zip_longest(old, new, fillvalue=sentinel):
+        old_tail.append(old_value)
+        new_tail.append(new_value)
+
     assert old_tail == new_tail
 
 
@@ -144,3 +149,13 @@ def test_references_global():
     def f():
         yield 1
         yield _test_refereences_global_sentinel
+
+
+def test_fully_consumed():
+    def f():
+        yield 1
+
+    gen = f()
+    next(gen)
+
+    assert_roundtips(gen)
