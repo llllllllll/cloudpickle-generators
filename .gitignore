@@ -1,0 +1,23 @@
+*~
+
+# Mac OSX folder properties
+.DS_Store
+
+# compiled artifacts
+*.o
+*.a
+*.so*
+
+# etags
+TAGS
+
+.gdb_history
+
+*.pyc
+
+.cache/*
+
+# make helper
+.compiler_flags
+
+*.egg-info/*
