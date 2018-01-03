@@ -1,8 +1,8 @@
 ``cloudpickle-generators``
 =========================
 
-[cloudpickle](https://github.com/cloudpipe/cloudpickle) support for generators,
-including partially consumed generators.
+`cloudpickle <https://github.com/cloudpipe/cloudpickle>`_ support for
+generators, including partially consumed generators.
 
 Usage
 -----
