@@ -28,7 +28,10 @@ def assert_roundtips(old_gen):
     assert_tail_matches(old_gen, new_gen)
 
     assert old_gen.__name__ == new_gen.__name__
-    assert old_gen.__qualname__ == new_gen.__qualname__
+    assert (
+        getattr(old_gen, '__qualname__', None) ==
+        getattr(new_gen, '__qualname__', None)
+    )
 
 
 def test_simple_generator():

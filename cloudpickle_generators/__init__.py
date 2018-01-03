@@ -81,9 +81,13 @@ def _create_skeleton_generator(gen_func):
         **{key: None for key in kwonly_names}
     )
 
-    # manually update the qualname to fix a bug in Python 3.6 where the
-    # qualname is not correct when using both *args and **kwargs
-    gen.__qualname__ = gen_func.__qualname__
+    try:
+        # manually update the qualname to fix a bug in Python 3.6 where the
+        # qualname is not correct when using both *args and **kwargs
+        gen.__qualname__ = gen_func.__qualname__
+    except AttributeError:
+        # there is no __qualname__ on generators in Python < 3.5
+        pass
 
     return gen
 
@@ -110,7 +114,11 @@ def _restore_spent_generator(name, qualname):
         yield
 
     single_generator.__name__ = name
-    single_generator.__qualname__ = qualname
+    try:
+        single_generator.__qualname__ = qualname
+    except AttributeError:
+        # there is no __qualname__ on generators in Python < 3.5
+        pass
 
     gen = single_generator()
     next(gen)
@@ -123,7 +131,7 @@ def _save_generator(self, gen):
         # frame is None when the generator is fully consumed; take a fast path
         self.save_reduce(
             _restore_spent_generator,
-            (gen.__name__, gen.__qualname__),
+            (gen.__name__, getattr(gen, '__qualname__', None)),
             obj=gen,
         )
         return
@@ -142,7 +150,11 @@ def _save_generator(self, gen):
         (),
         (_empty_cell(),) * len(f_code.co_freevars),
     )
-    gen_func.__qualname__ = gen.__qualname__
+    try:
+        gen_func.__qualname__ = gen.__qualname__
+    except AttributeError:
+        # there is no __qualname__ on generators in Python < 3.5
+        pass
 
     save = self.save
     write = self.write
