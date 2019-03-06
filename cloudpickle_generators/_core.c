@@ -7,6 +7,17 @@
 #define UNUSED(name) name
 #endif
 
+
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 7
+#define EXC_TYPE_REF(frame) ((frame)->f_exc_value)
+#define EXC_VALUE_REF(frame) ((frame)->f_exc_value)
+#define EXC_TRACEBACK_REF(frame) ((frame)->f_exc_traceback)
+#else
+#define EXC_TYPE_REF(frame) (((PyGenObject*)((frame)->f_gen))->gi_exc_state.exc_type)
+#define EXC_VALUE_REF(frame) (((PyGenObject*)((frame)->f_gen))->gi_exc_state.exc_value)
+#define EXC_TRACEBACK_REF(frame) (((PyGenObject*)((frame)->f_gen))->gi_exc_state.exc_traceback)
+#endif
+
 static PyObject* unset_value_repr(PyObject* UNUSED(self)) {
     return PyUnicode_FromString("unset_value");
 }
@@ -200,8 +211,8 @@ private_frame_data(PyObject* UNUSED(self), PyObject* frame_ob) {
         PyTuple_SET_ITEM(block_stack, ix, block);
     }
 
-    if (!frame->f_exc_type) {
-        if (frame->f_exc_value || frame->f_exc_traceback) {
+    if (!EXC_TYPE_REF(frame)) {
+        if (EXC_VALUE_REF(frame) || EXC_TRACEBACK_REF(frame)) {
             PyErr_SetString(PyExc_AssertionError,
                             "the exception type was null but found non-null"
                             " value or traceback");
@@ -212,9 +223,9 @@ private_frame_data(PyObject* UNUSED(self), PyObject* frame_ob) {
         Py_INCREF(Py_None);
     }
     else if (!(exc_info = PyTuple_Pack(3,
-                                       frame->f_exc_type,
-                                       frame->f_exc_value,
-                                       frame->f_exc_traceback))) {
+                                       EXC_TYPE_REF(frame),
+                                       EXC_VALUE_REF(frame),
+                                       EXC_TRACEBACK_REF(frame)))) {
         goto error;
     }
 
@@ -312,14 +323,14 @@ restore_frame(PyObject* UNUSED(self), PyObject* args, PyObject* kwargs) {
             return NULL;
         }
 
-        frame->f_exc_type = PyTuple_GET_ITEM(exc_info, 0);
-        Py_INCREF(frame->f_exc_type);
+        EXC_TYPE_REF(frame) = PyTuple_GET_ITEM(exc_info, 0);
+        Py_INCREF(EXC_TYPE_REF(frame));
 
-        frame->f_exc_value = PyTuple_GET_ITEM(exc_info, 0);
-        Py_INCREF(frame->f_exc_value);
+        EXC_VALUE_REF(frame) = PyTuple_GET_ITEM(exc_info, 1);
+        Py_INCREF(EXC_VALUE_REF(frame));
 
-        frame->f_exc_traceback = PyTuple_GET_ITEM(exc_info, 0);
-        Py_INCREF(frame->f_exc_traceback);
+        EXC_TRACEBACK_REF(frame) = PyTuple_GET_ITEM(exc_info, 2);
+        Py_INCREF(EXC_TRACEBACK_REF(frame));
     }
     else if (exc_info != Py_None) {
         PyErr_Format(PyExc_ValueError,
