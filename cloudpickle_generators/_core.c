@@ -15,7 +15,8 @@
 #else
 #define EXC_TYPE_REF(frame) (((PyGenObject*)((frame)->f_gen))->gi_exc_state.exc_type)
 #define EXC_VALUE_REF(frame) (((PyGenObject*)((frame)->f_gen))->gi_exc_state.exc_value)
-#define EXC_TRACEBACK_REF(frame) (((PyGenObject*)((frame)->f_gen))->gi_exc_state.exc_traceback)
+#define EXC_TRACEBACK_REF(frame) \
+  (((PyGenObject*)((frame)->f_gen))->gi_exc_state.exc_traceback)
 #endif
 
 static PyObject* unset_value_repr(PyObject* UNUSED(self)) {
@@ -30,6 +31,15 @@ static void unset_value_dealloc(PyObject* UNUSED(self)) {
 
 PyMethodDef unset_value_methods[] = {
     {"__reduce__", (PyCFunction) unset_value_repr, METH_NOARGS, NULL},
+    {NULL},
+};
+
+PyObject* get_module(PyObject* UNUSED(self), void* UNUSED(arg)) {
+  return PyUnicode_FromString("cloudpickle_generators._core");
+}
+
+PyGetSetDef unset_value_getsets[] = {
+    {"__module__", get_module, NULL, NULL, NULL},
     {NULL},
 };
 
@@ -62,6 +72,8 @@ static PyTypeObject unset_value_type = {
     0,                                                /* tp_coroutine */
     0,                                                /* tp_coroutinenext */
     unset_value_methods,                              /* tp_methods */
+    0,                                                /* tp_members */
+    unset_value_getsets,                              /* tp_getset */
 };
 
 PyObject unset_value = {
@@ -390,7 +402,7 @@ PyInit__core(void) {
 
     if (PyObject_SetAttrString(m,
                                "unset_value",
-                               (PyObject*) &unset_value_type)) {
+                               (PyObject*) &unset_value)) {
         Py_DECREF(m);
         return NULL;
     }
