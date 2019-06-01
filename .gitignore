@@ -21,3 +21,5 @@ TAGS
 .compiler_flags
 
 *.egg-info/*
+
+venv/*
