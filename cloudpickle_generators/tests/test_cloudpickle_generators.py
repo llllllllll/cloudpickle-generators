@@ -3,10 +3,6 @@ from types import FunctionType
 
 import cloudpickle
 
-import cloudpickle_generators
-
-cloudpickle_generators.register()
-
 
 def roundtrip(ob):
     return cloudpickle.loads(cloudpickle.dumps(ob))
