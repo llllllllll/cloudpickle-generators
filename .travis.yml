@@ -15,7 +15,7 @@ install:
 
 script:
  - py.test cloudpickle_generators
- - flake8 cloudpickle_generators
+ - if [[ $(python -c 'import sys; print(sys.version_info[:2])') != "(3, 4)" ]]; then flake8 cloudpickle_generators; fi
 
 notifications:
   email: false
