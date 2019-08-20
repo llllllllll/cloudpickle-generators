@@ -1,11 +1,16 @@
-from itertools import chain
 import pickle
+import sys
+from itertools import chain
 from types import FunctionType, GeneratorType
 
 from cloudpickle import CloudPickler
 
 from ._core import private_frame_data, restore_frame, unset_value
 
+if sys.version_info >= (3, 5, 0):
+    from types import CoroutineType
+if sys.version_info >= (3, 6, 0):
+    from types import AsyncGeneratorType
 
 __version__ = '0.1.0'
 
@@ -45,6 +50,7 @@ def _fill_generator(gen, lasti, f_locals, frame_data):
     frame_data : tuple
         The extra frame data extracted from ``private_frame_data``.
 
+
     Returns
     -------
     gen : generator
@@ -58,6 +64,30 @@ def _fill_generator(gen, lasti, f_locals, frame_data):
     )
     restore_frame(gen.gi_frame, lasti, locals_, *frame_data)
     return gen
+
+
+def _fill_coroutine(coro, lasti, f_locals, frame_data):
+    # See docstring for _fill_generator
+    code = coro.cr_frame.f_code
+    locals_ = [f_locals.get(var, unset_value) for var in code.co_varnames]
+    locals_.extend(
+        _make_cell(f_locals, var)
+        for var in chain(code.co_cellvars, code.co_freevars)
+    )
+    restore_frame(coro.cr_frame, lasti, locals_, *frame_data)
+    return coro
+
+
+def _fill_async_generator(asyncgen, lasti, f_locals, frame_data):
+    # See docstring for _fill_generator
+    code = asyncgen.ag_frame.f_code
+    locals_ = [f_locals.get(var, unset_value) for var in code.co_varnames]
+    locals_.extend(
+        _make_cell(f_locals, var)
+        for var in chain(code.co_cellvars, code.co_freevars)
+    )
+    restore_frame(asyncgen.ag_frame, lasti, locals_, *frame_data)
+    return asyncgen
 
 
 def _create_skeleton_generator(gen_func):
@@ -127,6 +157,20 @@ def _restore_spent_generator(name, qualname):
 
 def _save_generator(self, gen):
     frame = gen.gi_frame
+    _save_generator_impl(self, frame, gen, _fill_generator)
+
+
+def _save_coroutine(self, coro):
+    frame = coro.cr_frame
+    _save_generator_impl(self, frame, coro, _fill_coroutine)
+
+
+def _save_async_generator(self, asyncgen):
+    frame = asyncgen.ag_frame
+    _save_generator_impl(self, frame, asyncgen, _fill_async_generator)
+
+
+def _save_generator_impl(self, frame, gen, filler):
     if frame is None:
         # frame is None when the generator is fully consumed; take a fast path
         self.save_reduce(
@@ -160,9 +204,11 @@ def _save_generator(self, gen):
     write = self.write
 
     # push a function onto the stack to fill up our skeleton generator
-    save(_fill_generator)
+    # or coroutine
+    save(filler)
 
-    # the start of the tuple to pass to ``_fill_generator``
+    # the start of the tuple to pass to ``_fill_generator`` (or
+    # ``_fill_coroutine``, ``_fill_async_generator``)
     write(pickle.MARK)
 
     save(_create_skeleton_generator)
@@ -170,12 +216,14 @@ def _save_generator(self, gen):
     write(pickle.REDUCE)
     self.memoize(gen)
 
-    # push the rest of the arguments to ``_fill_generator``
+    # push the rest of the arguments to ``_fill_generator`` (or
+    # ``_fill_coroutine``, ``_fill_async_generator``)
     save(frame.f_lasti)
     save(f_locals)
     save(private_frame_data(frame))
 
-    # call ``_fill_generator``
+    # call ``_fill_generator`` (or ``_fill_coroutine``,
+    # _fill_async_generator``)
     write(pickle.TUPLE)
     write(pickle.REDUCE)
 
@@ -184,6 +232,10 @@ def register():
     """Register the cloudpickle extension.
     """
     CloudPickler.dispatch[GeneratorType] = _save_generator
+    if sys.version_info >= (3, 5, 0):
+        CloudPickler.dispatch[CoroutineType] = _save_coroutine
+    if sys.version_info >= (3, 6, 0):
+        CloudPickler.dispatch[AsyncGeneratorType] = _save_async_generator
 
 
 def unregister():
@@ -193,3 +245,12 @@ def unregister():
         # make sure we are only removing the dispatch we added, not someone
         # else's
         del CloudPickler.dispatch[GeneratorType]
+
+    if sys.version_info >= (3, 5, 0):
+        if CloudPickler.dispatch.get(CoroutineType) is _save_coroutine:
+            del CloudPickler.dispatch[CoroutineType]
+
+    if sys.version_info >= (3, 6, 0):
+        if (CloudPickler.dispatch.get(AsyncGeneratorType) is
+                _save_async_generator):
+            del CloudPickler.dispatch[AsyncGeneratorType]
