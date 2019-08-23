@@ -1,7 +1,5 @@
 import subprocess
 import cloudpickle
-import cloudpickle_generators
-cloudpickle_generators.register()
 
 
 def gen():
