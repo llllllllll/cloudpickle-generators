@@ -223,7 +223,7 @@ private_frame_data(PyObject* UNUSED(self), PyObject* frame_ob) {
         PyTuple_SET_ITEM(block_stack, ix, block);
     }
 
-    if (!EXC_TYPE_REF(frame)) {
+    if (!EXC_TYPE_REF(frame) || (EXC_TYPE_REF(frame) == Py_None)) {
         if (EXC_VALUE_REF(frame) || EXC_TRACEBACK_REF(frame)) {
             PyErr_SetString(PyExc_AssertionError,
                             "the exception type was null but found non-null"
