@@ -9,12 +9,11 @@ def gen():
 
 
 def main():
-    subprocess.run(["ls"])
+    subprocess.check_call(["ls"])
     yield from gen()
-    
+
 
 def test_1():
     coro = main()
-    value = coro.send(None)    
+    coro.send(None)
     cloudpickle.dumps(coro)
-
