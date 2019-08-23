@@ -36,12 +36,27 @@ def _make_cell(f_locals, var):
 
 
 def _fill_generator(gen, lasti, f_locals, frame_data):
+    _fill_generator_impl(gen.gi_frame, lasti, f_locals, frame_data)
+    return gen
+
+
+def _fill_coroutine(coro, lasti, f_locals, frame_data):
+    _fill_generator_impl(coro.cr_frame, lasti, f_locals, frame_data)
+    return coro
+
+
+def _fill_async_generator(asyncgen, lasti, f_locals, frame_data):
+    _fill_generator_impl(asyncgen.ag_frame, lasti, f_locals, frame_data)
+    return asyncgen
+
+
+def _fill_generator_impl(frame, lasti, f_locals, frame_data):
     """Reconstruct a generator instance.
 
     Parameters
     ----------
-    gen : generator
-        The skeleton generator.
+    frame : frame
+        The frame of the skeleton generator, coroutine or async generator.
     lasti : int
         The last instruction executed in the generator. -1 indicates that the
         generator hasn't been started.
@@ -56,38 +71,13 @@ def _fill_generator(gen, lasti, f_locals, frame_data):
     gen : generator
         The filled generator instance.
     """
-    code = gen.gi_frame.f_code
+    code = frame.f_code
     locals_ = [f_locals.get(var, unset_value) for var in code.co_varnames]
     locals_.extend(
         _make_cell(f_locals, var)
         for var in chain(code.co_cellvars, code.co_freevars)
     )
-    restore_frame(gen.gi_frame, lasti, locals_, *frame_data)
-    return gen
-
-
-def _fill_coroutine(coro, lasti, f_locals, frame_data):
-    # See docstring for _fill_generator
-    code = coro.cr_frame.f_code
-    locals_ = [f_locals.get(var, unset_value) for var in code.co_varnames]
-    locals_.extend(
-        _make_cell(f_locals, var)
-        for var in chain(code.co_cellvars, code.co_freevars)
-    )
-    restore_frame(coro.cr_frame, lasti, locals_, *frame_data)
-    return coro
-
-
-def _fill_async_generator(asyncgen, lasti, f_locals, frame_data):
-    # See docstring for _fill_generator
-    code = asyncgen.ag_frame.f_code
-    locals_ = [f_locals.get(var, unset_value) for var in code.co_varnames]
-    locals_.extend(
-        _make_cell(f_locals, var)
-        for var in chain(code.co_cellvars, code.co_freevars)
-    )
-    restore_frame(asyncgen.ag_frame, lasti, locals_, *frame_data)
-    return asyncgen
+    restore_frame(frame, lasti, locals_, *frame_data)
 
 
 def _create_skeleton_generator(gen_func):
