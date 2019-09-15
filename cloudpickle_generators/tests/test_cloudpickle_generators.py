@@ -2,6 +2,7 @@ from itertools import zip_longest
 from types import FunctionType
 
 import cloudpickle
+import pytest
 
 
 def roundtrip(ob):
@@ -155,3 +156,16 @@ def test_fully_consumed():
     next(gen)
 
     assert_roundtips(gen)
+
+
+def test_running():
+    def f():
+        yield roundtrip((yield))
+
+    gen = f()
+    next(gen)
+
+    with pytest.raises(ValueError) as e:
+        gen.send(gen)
+
+    assert str(e.value) == 'cannot save running generator'

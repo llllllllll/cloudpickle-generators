@@ -22,4 +22,4 @@ TAGS
 
 *.egg-info/*
 
-venv/*
+venv*/*
