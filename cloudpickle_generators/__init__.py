@@ -146,6 +146,9 @@ def _restore_spent_generator(name, qualname):
 
 
 def _save_generator(self, gen):
+    if gen.gi_running:
+        raise ValueError('cannot save running generator')
+
     frame = gen.gi_frame
     _save_generator_impl(self, frame, gen, _fill_generator)
 
