@@ -1,3 +1,4 @@
+import builtins
 from itertools import zip_longest
 from types import FunctionType, coroutine
 
@@ -157,3 +158,31 @@ def test_fully_consumed():
     gen.send(None)
 
     assert_roundtips(gen)
+
+
+def test_namespace_1():
+    class awaitable:
+        def __await__(self):
+            yield
+            return
+
+    async def f():
+        print(await awaitable())
+
+    gen = f()
+    gen.send(None)
+    cloudpickle.dumps(gen)
+
+
+def test_namespace_2():
+    class awaitable:
+        def __await__(self):
+            yield
+            return
+
+    async def f():
+        builtins.print(await awaitable())
+
+    gen = f()
+    gen.send(None)
+    cloudpickle.dumps(gen)
