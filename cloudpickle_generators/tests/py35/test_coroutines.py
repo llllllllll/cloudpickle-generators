@@ -1,4 +1,5 @@
 import builtins
+import pytest
 from itertools import zip_longest
 from types import FunctionType, coroutine
 
@@ -172,6 +173,9 @@ def test_namespace_1():
     gen = f()
     gen.send(None)
     cloudpickle.dumps(gen)
+    gen2 = cloudpickle.loads(cloudpickle.dumps(gen))
+    with pytest.raises(StopIteration):
+        gen2.send(None)
 
 
 def test_namespace_2():
@@ -185,4 +189,6 @@ def test_namespace_2():
 
     gen = f()
     gen.send(None)
-    cloudpickle.dumps(gen)
+    gen2 = cloudpickle.loads(cloudpickle.dumps(gen))
+    with pytest.raises(StopIteration):
+        gen2.send(None)
