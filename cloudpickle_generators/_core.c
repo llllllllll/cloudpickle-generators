@@ -208,7 +208,7 @@ private_frame_data(PyObject* UNUSED(self), PyObject* frame_ob) {
     for (ix = 0; ix < size; ++ix) {
         PyObject* ob = frame->f_valuestack[ix];
         if (ob == NULL) {
-            ob = Py_None;
+            ob = &unset_value;
         }
         Py_INCREF(ob);
         PyTuple_SET_ITEM(stack, ix, ob);
@@ -313,7 +313,7 @@ restore_frame(PyObject* UNUSED(self), PyObject* args, PyObject* kwargs) {
     /* restore the data stack state */
     for (ix = 0; ix < PyTuple_Size(stack); ++ix) {
         PyObject* ob = PyTuple_GET_ITEM(stack, ix);
-        if (ob == Py_None) {
+        if (ob == &unset_value) {
             ob = NULL;
         }
         Py_XINCREF(ob);
