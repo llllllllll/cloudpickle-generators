@@ -1,7 +1,7 @@
 import pickle
 import sys
 from itertools import chain
-from types import FunctionType, GeneratorType
+from types import FunctionType, GeneratorType, CoroutineType, AsyncGeneratorType
 
 from cloudpickle import CloudPickler
 
@@ -221,29 +221,118 @@ def _save_generator_impl(self, frame, gen, filler):
     write(pickle.REDUCE)
 
 
+# The _reduce.*() and _rehydrate.*() variants work with the C implementation
+# of pickle, which became the default from Python 3.8.
+def _rehydrate_generator(gen_func, lasti, f_locals, frame_data):
+    gen = _create_skeleton_generator(gen_func)
+    _fill_generator_impl(gen.gi_frame, lasti, f_locals, frame_data)
+    return gen
+
+
+def _rehydrate_coroutine(gen_func, lasti, f_locals, frame_data):
+    coro = _create_skeleton_generator(gen_func)
+    _fill_generator_impl(coro.cr_frame, lasti, f_locals, frame_data)
+    return coro
+
+
+def _rehydrate_async_generator(gen_func, lasti, f_locals, frame_data):
+    asyncgen = _create_skeleton_generator(gen_func)
+    _fill_generator_impl(asyncgen.ag_frame, lasti, f_locals, frame_data)
+    return asyncgen
+
+
+def _reduce_generator(gen):
+    if gen.gi_running:
+        raise ValueError('cannot save running generator')
+
+    frame = gen.gi_frame
+    if frame is None:
+        # frame is None when the generator is fully consumed; take a fast path
+        return _restore_spent_generator, (gen.__name__,
+                                          getattr(gen, '__qualname__', None))
+    return _rehydrate_generator, _reduce_generator_impl(frame, gen)
+
+
+def _reduce_coroutine(coro):
+    frame = coro.cr_frame
+    if frame is None:
+        # frame is None when the generator is fully consumed; take a fast path
+        return _restore_spent_generator, (coro.__name__,
+                                          getattr(coro, '__qualname__', None))
+    return _rehydrate_coroutine, _reduce_generator_impl(frame, coro)
+
+
+def _reduce_async_generator(asyncgen):
+    frame = asyncgen.ag_frame
+    if frame is None:
+        # frame is None when the generator is fully consumed; take a fast path
+        return _restore_spent_generator, (asyncgen.__name__,
+                                          getattr(asyncgen, '__qualname__',
+                                                  None))
+    return _rehydrate_async_generator, _reduce_generator_impl(frame, asyncgen)
+
+
+def _reduce_generator_impl(frame, gen):
+    f_code = frame.f_code
+
+    # Create a copy of generator function without the closure to serve as a box
+    # to serialize the code, globals, name, and closure. Cloudpickle already
+    # handles things like closures and complicated globals so just rely on
+    # cloudpickle to serialize this function.
+    gen_func = FunctionType(
+        f_code,
+        frame.f_globals,
+        gen.__name__,
+        (),
+        (_empty_cell(), ) * len(f_code.co_freevars),
+    )
+    gen_func.__qualname__ = gen.__qualname__
+
+    return gen_func, frame.f_lasti, frame.f_locals, private_frame_data(frame)
+
+
 def register():
     """Register the cloudpickle extension.
     """
-    CloudPickler.dispatch[GeneratorType] = _save_generator
-    if sys.version_info >= (3, 5, 0):
-        CloudPickler.dispatch[CoroutineType] = _save_coroutine
-    if sys.version_info >= (3, 6, 0):
-        CloudPickler.dispatch[AsyncGeneratorType] = _save_async_generator
+    if pickle.HIGHEST_PROTOCOL >= 5:
+        CloudPickler.dispatch[GeneratorType] = _reduce_generator
+        CloudPickler.dispatch[CoroutineType] = _reduce_coroutine
+        CloudPickler.dispatch[AsyncGeneratorType] = \
+            _reduce_async_generator
+    else:
+        CloudPickler.dispatch[GeneratorType] = _save_generator
+        if sys.version_info >= (3, 5, 0):
+            CloudPickler.dispatch[CoroutineType] = _save_coroutine
+        if sys.version_info >= (3, 6, 0):
+            CloudPickler.dispatch[AsyncGeneratorType] = _save_async_generator
 
 
 def unregister():
     """Unregister the cloudpickle extension.
     """
-    if CloudPickler.dispatch.get(GeneratorType) is _save_generator:
+    if pickle.HIGHEST_PROTOCOL >= 5:
         # make sure we are only removing the dispatch we added, not someone
-        # else's
-        del CloudPickler.dispatch[GeneratorType]
+        # else's.
+        if CloudPickler.dispatch.get(GeneratorType) is _reduce_generator:
+            del CloudPickler.dispatch[GeneratorType]
 
-    if sys.version_info >= (3, 5, 0):
-        if CloudPickler.dispatch.get(CoroutineType) is _save_coroutine:
-            del CloudPickler.dispatch[CoroutineType]
+        if sys.version_info >= (3, 5, 0):
+            if CloudPickler.dispatch.get(CoroutineType) is _reduce_coroutine:
+                del CloudPickler.dispatch[CoroutineType]
 
-    if sys.version_info >= (3, 6, 0):
-        if (CloudPickler.dispatch.get(AsyncGeneratorType) is
-                _save_async_generator):
-            del CloudPickler.dispatch[AsyncGeneratorType]
+        if sys.version_info >= (3, 6, 0):
+            if (CloudPickler.dispatch.get(AsyncGeneratorType) is
+                    _reduce_async_generator):
+                del CloudPickler.dispatch[AsyncGeneratorType]
+    else:
+        if CloudPickler.dispatch.get(GeneratorType) is _save_generator:
+            del CloudPickler.dispatch[GeneratorType]
+
+        if sys.version_info >= (3, 5, 0):
+            if CloudPickler.dispatch.get(CoroutineType) is _save_coroutine:
+                del CloudPickler.dispatch[CoroutineType]
+
+        if sys.version_info >= (3, 6, 0):
+            if (CloudPickler.dispatch.get(AsyncGeneratorType) is
+                    _save_async_generator):
+                del CloudPickler.dispatch[AsyncGeneratorType]
