@@ -2,6 +2,8 @@ from itertools import zip_longest
 from types import FunctionType, coroutine
 
 import cloudpickle
+import pytest
+import sys
 
 
 @coroutine
@@ -57,6 +59,7 @@ def test_async_generator_0():
         yield 2
 
 
+@pytest.mark.xfail(sys.version_info >= (3, 8, 0), reason="asyncgen_asgen doesn't work on this function before roundtrip")
 def test_async_generator_1():
     async def ticker(delay, to):
         # PEP525

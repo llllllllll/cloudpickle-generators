@@ -199,7 +199,12 @@ private_frame_data(PyObject* UNUSED(self), PyObject* frame_ob) {
     }
 
     frame = (PyFrameObject*) frame_ob;
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 10
     size = frame->f_stacktop - frame->f_valuestack;
+#else
+    size = frame->f_stackdepth;
+#endif
+
 
     if (!(stack = PyTuple_New(size))) {
         return NULL;
@@ -299,7 +304,12 @@ restore_frame(PyObject* UNUSED(self), PyObject* args, PyObject* kwargs) {
     }
 
     /* set the lasti to move the generator's instruction pointer */
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 10
     frame->f_lasti = lasti;
+#else
+    // In python3.10, the f_lasti returned in python is different from the f_lasti in the C struct.
+    frame->f_lasti = lasti / sizeof(_Py_CODEUNIT);
+#endif
 
     /* restore the local variable state */
     for (ix = 0; ix < PyList_Size(locals); ++ix) {
@@ -317,7 +327,11 @@ restore_frame(PyObject* UNUSED(self), PyObject* args, PyObject* kwargs) {
             ob = NULL;
         }
         Py_XINCREF(ob);
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 10
         *frame->f_stacktop++ = ob;
+#else
+        frame->f_valuestack[frame->f_stackdepth++] = ob;
+#endif
     }
 
     /* restore the block stack (exceptions and loops) state */
